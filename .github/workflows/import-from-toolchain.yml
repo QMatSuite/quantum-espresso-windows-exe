@@ -1,126 +1,123 @@
-name: Import QE Windows binaries from toolchain release
+name: Publish mirrored QE binaries (verified + attested)
 
 on:
   workflow_dispatch:
     inputs:
-      source_tag:
-        description: "Source release tag in QMatSuite/qmatsuite-toolchain (e.g. qe-7.5-win-oneapi-msmpi-20251223-d409e9b)"
+      upstream_tag:
+        description: "Upstream release tag in QMatSuite/qmatsuite-toolchain"
         required: true
-        type: string
-      portal_tag:
-        description: "Tag to create in this portal repo (default: same as source_tag)"
-        required: false
-        type: string
-      zip_name:
-        description: "Asset zip filename to download from source release"
-        required: false
+        default: "qe-7.5-win-oneapi-msmpi-20251223-d409e9b"
+      asset_zip:
+        description: "Upstream zip asset filename"
+        required: true
         default: "qe-7.5-win-oneapi-msmpi.zip"
-        type: string
-      checksums_name:
-        description: "Checksums filename to download from source release"
-        required: false
+      asset_checksums:
+        description: "Upstream checksums filename"
+        required: true
         default: "checksums.txt"
-        type: string
-
-permissions:
-  contents: write
+      publish_tag:
+        description: "Portal repo tag to create/update"
+        required: true
+        default: "qe-7.5-win-oneapi-msmpi"
+      publish_name:
+        description: "Portal repo release name"
+        required: true
+        default: "Quantum ESPRESSO 7.5 — Windows (oneAPI + MS-MPI)"
+      prerelease:
+        description: "Mark as prerelease?"
+        required: true
+        type: boolean
+        default: false
 
 jobs:
-  import:
+  mirror:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write          # create/update release + upload assets
+      id-token: write          # required for Sigstore OIDC flow
+      attestations: write      # required to persist the attestation on GitHub
     steps:
-      - name: Resolve tags and URLs
-        id: vars
-        shell: bash
+      - name: Prepare workspace
+        run: |
+          mkdir -p out
+
+      - name: Download assets from upstream release
+        env:
+          UPSTREAM_REPO: QMatSuite/qmatsuite-toolchain
+          UPSTREAM_TAG: ${{ inputs.upstream_tag }}
+          ZIP_NAME: ${{ inputs.asset_zip }}
+          SUM_NAME: ${{ inputs.asset_checksums }}
         run: |
           set -euo pipefail
-          SOURCE_TAG="${{ inputs.source_tag }}"
-          PORTAL_TAG="${{ inputs.portal_tag }}"
-          ZIP_NAME="${{ inputs.zip_name }}"
-          SUMS_NAME="${{ inputs.checksums_name }}"
+          base="https://github.com/${UPSTREAM_REPO}/releases/download/${UPSTREAM_TAG}"
+          echo "Downloading: ${base}/${ZIP_NAME}"
+          curl -L --fail -o "out/${ZIP_NAME}" "${base}/${ZIP_NAME}"
+          echo "Downloading: ${base}/${SUM_NAME}"
+          curl -L --fail -o "out/${SUM_NAME}" "${base}/${SUM_NAME}"
+          ls -lah out
 
-          if [[ -z "${PORTAL_TAG}" ]]; then
-            PORTAL_TAG="${SOURCE_TAG}"
-          fi
-
-          BASE_URL="https://github.com/QMatSuite/qmatsuite-toolchain/releases/download/${SOURCE_TAG}"
-
-          echo "SOURCE_TAG=${SOURCE_TAG}" >> $GITHUB_ENV
-          echo "PORTAL_TAG=${PORTAL_TAG}" >> $GITHUB_ENV
-          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
-          echo "SUMS_NAME=${SUMS_NAME}" >> $GITHUB_ENV
-          echo "BASE_URL=${BASE_URL}" >> $GITHUB_ENV
-
-          echo "portal_tag=${PORTAL_TAG}" >> $GITHUB_OUTPUT
-          echo "zip_name=${ZIP_NAME}" >> $GITHUB_OUTPUT
-          echo "sums_name=${SUMS_NAME}" >> $GITHUB_OUTPUT
-
-      - name: Download release assets (zip + checksums)
-        shell: bash
+      - name: Verify SHA256 against checksums.txt (case-insensitive)
+        id: verify
+        env:
+          ZIP_NAME: ${{ inputs.asset_zip }}
+          SUM_NAME: ${{ inputs.asset_checksums }}
         run: |
           set -euo pipefail
-          mkdir -p dist
-          echo "Downloading: ${BASE_URL}/${ZIP_NAME}"
-          curl -fL --retry 5 --retry-delay 2 -o "dist/${ZIP_NAME}" "${BASE_URL}/${ZIP_NAME}"
-          echo "Downloading: ${BASE_URL}/${SUMS_NAME}"
-          curl -fL --retry 5 --retry-delay 2 -o "dist/${SUMS_NAME}" "${BASE_URL}/${SUMS_NAME}"
+          cd out
 
-          ls -lah dist
-
-      - name: Verify SHA256 against checksums.txt
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd dist
-
-          # Expect checksums.txt to contain a line like:
-          # <sha256>  <filename>
-          EXPECTED="$(grep -E "  ${ZIP_NAME}$" "${SUMS_NAME}" | head -n 1 | awk '{print $1}')"
-          if [[ -z "${EXPECTED}" ]]; then
-            echo "ERROR: Could not find SHA256 for ${ZIP_NAME} inside ${SUMS_NAME}"
-            echo "---- ${SUMS_NAME} ----"
-            cat "${SUMS_NAME}"
+          # Expected hash: first field on the line containing the zip filename.
+          expected="$(grep -E "([A-Fa-f0-9]{64})[[:space:]]+${ZIP_NAME}$" "${SUM_NAME}" | awk '{print $1}' | head -n1)"
+          if [ -z "${expected}" ]; then
+            echo "ERROR: Could not find ${ZIP_NAME} in ${SUM_NAME}"
             exit 1
           fi
 
-          ACTUAL="$(sha256sum "${ZIP_NAME}" | awk '{print $1}')"
+          actual="$(sha256sum "${ZIP_NAME}" | awk '{print $1}')"
 
-          echo "Expected: ${EXPECTED}"
-          echo "Actual:   ${ACTUAL}"
+          # normalize to uppercase to avoid your previous mismatch
+          expected_u="$(echo "${expected}" | tr '[:lower:]' '[:upper:]')"
+          actual_u="$(echo "${actual}" | tr '[:lower:]' '[:upper:]')"
 
-          if [[ "${EXPECTED}" != "${ACTUAL}" ]]; then
+          echo "Expected: ${expected_u}"
+          echo "Actual:   ${actual_u}"
+
+          if [ "${expected_u}" != "${actual_u}" ]; then
             echo "ERROR: SHA256 mismatch. Refusing to publish."
             exit 1
           fi
 
-          echo "SHA256 verified OK."
+          echo "ZIP_ABS_PATH=$(python3 -c 'import os; print(os.path.abspath("'"${ZIP_NAME}"'"))')" >> "$GITHUB_OUTPUT"
+          echo "SHA256=${actual_u}" >> "$GITHUB_OUTPUT"
+          echo "Verified OK."
 
-      - name: Create GitHub Release (portal repo) and upload assets
+      - name: Attest mirroring provenance (portal repo)
+        id: attest
+        uses: actions/attest-build-provenance@v3
+        with:
+          # Use absolute path (avoids “not rooted” problems)
+          subject-path: ${{ steps.verify.outputs.ZIP_ABS_PATH }}
+          show-summary: true
+
+      - name: Create/Update GitHub Release in portal repo (upload verified assets)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.vars.outputs.portal_tag }}
-          name: ${{ steps.vars.outputs.portal_tag }}
+          tag_name: ${{ inputs.publish_tag }}
+          name: ${{ inputs.publish_name }}
           draft: false
-          prerelease: false
-          generate_release_notes: false
+          prerelease: ${{ inputs.prerelease }}
           files: |
-            dist/${{ steps.vars.outputs.zip_name }}
-            dist/${{ steps.vars.outputs.sums_name }}
+            out/${{ inputs.asset_zip }}
+            out/${{ inputs.asset_checksums }}
           body: |
-            Quantum ESPRESSO Windows binaries (Intel oneAPI + MS-MPI)
+            This release mirrors a prebuilt Quantum ESPRESSO Windows package from **QMatSuite/qmatsuite-toolchain**.
 
-            This release is a *byte-for-byte* copy of the artifacts published in:
-            QMatSuite/qmatsuite-toolchain release tag: `${{ env.SOURCE_TAG }}`
+            **Upstream release tag:** `${{ inputs.upstream_tag }}`
+            **Upstream asset:** `${{ inputs.asset_zip }}`
+            **Verified SHA256:** `${{ steps.verify.outputs.SHA256 }}`
 
-            Assets:
-            - `${{ env.ZIP_NAME }}`
-            - `${{ env.SUMS_NAME }}`
+            ✅ This portal workflow **downloads + verifies** the upstream ZIP and then creates an **attestation for the mirrored file** in *this* repository.
+            Note: this attestation proves the **mirroring process**, not compilation.
 
-            Integrity:
-            - SHA256 was verified against `${{ env.SUMS_NAME }}` during this workflow run.
-
-            Provenance / attestation / signing:
-            - The binaries are signed in the *source* pipeline.
-            - For build provenance attestation, see the source release and its attestations:
-              https://github.com/QMatSuite/qmatsuite-toolchain/releases/tag/${{ env.SOURCE_TAG }}
+            **Attestation (portal repo):** ${{ steps.attest.outputs.attestation-url }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
