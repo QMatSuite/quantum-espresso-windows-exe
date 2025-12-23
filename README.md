@@ -1,134 +1,171 @@
-# Quantum ESPRESSO for Windows (.exe, ready-to-use)
+# Quantum ESPRESSO for Windows
 
-✅ **Precompiled Quantum ESPRESSO (QE) executables for Windows 10/11 — just unzip and run.**  
-Maintained by the [QMatSuite](https://github.com/qmatsuite/qmatsuite) project.
+[![Build (GitHub Actions)](https://github.com/QMatSuite/quantum-espresso-windows-exe/actions/workflows/import-from-toolchain.yml/badge.svg)](https://github.com/QMatSuite/quantum-espresso-windows-exe/actions/workflows/import-from-toolchain.yml)
+![Signing (Microsoft Trusted Signing)](https://img.shields.io/badge/Signing-Microsoft%20Trusted%20Signing-2F81F7)
+[![Attestation (GitHub Artifact Attestation)](https://img.shields.io/badge/Attestation-GitHub%20Artifact%20Attestation-2DA44E)](https://github.com/QMatSuite/quantum-espresso-windows-exe/attestations)
+[![License: GPL-2.0+ (QE upstream)](https://img.shields.io/badge/License-GPL--2.0%2B-3DA639)](https://github.com/QEF/q-e)
 
-> This repository focuses on making **QE easy to run on Windows**,  
-> with optional convenience builds for Linux and macOS later.
+**Native • High-Performance • Trusted Builds**
 
----
+Precompiled **Quantum ESPRESSO** binaries for **Windows** — built natively with **Intel oneAPI**, **Intel MKL**, **OpenMP**, and **Microsoft MPI**.  
+Maintained by the **QMatSuite** project.
 
-## 1. What is this?
+**Download → unzip → run.**  
+No WSL. No MinGW. No fragile toolchains.
 
-This project provides **ready-to-use builds of Quantum ESPRESSO** for:
+## Why this matters
 
-- Windows users who don’t want to deal with compilers, MinGW, or WSL  
-- Teaching / classroom environments where students should be able to  
-  *“download QE and run an example in a few minutes”*  
-- GUI frontends (e.g. QMatSuite) that need a reliable QE backend
+Running Quantum ESPRESSO on Windows has historically been painful:
 
-Goals:
+- **Windows is not a first-class platform** for QE upstream
+- **Native builds are hard**:
+  - complex Fortran/C/C++ stack
+  - MPI + OpenMP + math libraries
+  - subtle ABI and runtime issues
+- Many users gave up or accepted:
+  - WSL
+  - slow generic binaries
+  - fragile MinGW builds
+  - “it works on my machine” setups
 
-- **No compilation**
-- **No WSL required**
-- **No toolchain setup** — just unzip, optionally add to `PATH`, and run `pw.x`.
+This project changes that.
 
----
+We provide a **reproducible, native, high-performance Windows build** of QE:
 
-## 2. Downloads
+- Compiled with **Intel oneAPI** compilers
+- Linked against **Intel MKL** (BLAS/LAPACK/FFT)
+- Parallelized via **OpenMP + Microsoft MPI**
+- Performance comparable to Linux builds
+- No emulation, no compatibility layers
 
-> ⚠️ **Precompiled packages are not published yet.**  
-> The toolchain and first public release are being prepared.
+QE on Windows is now first-class and fast.
 
-Planned packages:
+## What you get
 
-| Platform        | Status  | Planned package name                              | Notes                                              |
-|-----------------|---------|---------------------------------------------------|----------------------------------------------------|
-| Windows 64-bit  | WIP     | `qe-7.3.0-win64-qe-mkl-msmpi.zip`                 | QE with Intel oneAPI toolchain (MKL + MS-MPI + OMP)|
-| macOS arm64     | planned | `qe-7.3.0-macos-arm64-qe-accelerate.tar.gz`       | QE linked against Apple's Accelerate (BLAS/LAPACK) |
-| Linux x86_64    | planned | `qe-7.3.0-linux-x86_64-qe-openblas.tar.gz`        | Portable glibc + OpenBLAS                          |
+- **Ready-to-use Windows distribution** of Quantum ESPRESSO
+- **All executables and runtime DLLs colocated** under `bin/`
+- **No environment setup required**
+- **MPI and OpenMP supported** out of the box
 
-When the first release is ready, this section will list:
+This repository mirrors the standard, full-featured Windows QE bundle.
 
-- Direct download links  
-- SHA256 checksums  
-- Minimal test commands to verify the installation  
+Other build variants (different QE versions, `libxc`-enabled builds, tuning experiments, etc.) are produced and documented in the toolchain repository:
 
----
+- [QMatSuite Toolchain](https://github.com/QMatSuite/qmatsuite-toolchain)
 
-## 3. Quick start (Windows, planned)
+## Download
 
-Once the first Windows package is published, the workflow will look like:
+**Latest standard release (recommended):**
 
-1. Download `qe-7.3.0-win64-qe-mkl-msmpi.zip`
-2. Extract it to e.g. `C:\QE\qe-7.3.0`
-3. Open **PowerShell**:
+- **Release page**: [qe-7.5-win-oneapi-msmpi](https://github.com/QMatSuite/quantum-espresso-windows-exe/releases/tag/qe-7.5-win-oneapi-msmpi)
+- **Asset**: `qe-7.5-win-oneapi-msmpi.zip`
+- **SHA256**: `E50EC7368A5B7A964EB5084E0A13464BA2628D4E147C16227E876002EA34FDF7`
 
-   ```powershell
-   cd C:\QE\qe-7.3.0\bin
-   .\pw.x.exe < ..\examples\si_scf.in > ..\examples\si_scf.out
-   ```
+This is the default, stable, high-performance Windows build:
 
-4. If you see SCF iterations running and the job finishes without errors,  
-   your QE installation is working. The output will be written to  
-   `examples\si_scf.out`.
+- Full QE executable set
+- Intel MKL backend
+- OpenMP enabled
+- Microsoft MPI included
+- Signed and verified (see below)
 
-We will ship a minimal example under `examples/` to make self-testing easy.
+For experimental or alternative builds, see:
 
----
+- [QMatSuite Toolchain](https://github.com/QMatSuite/qmatsuite-toolchain)
 
-## 4. What will be included?
+Or open an issue if you need a custom build.
 
-Planned content for the Windows bundle:
+## Quick start (Windows)
 
-- **Quantum ESPRESSO core executables**, e.g.:
-  - `pw.x`, `ph.x`, `pp.x`, `bands.x`, `dos.x`, `projwfc.x`, …
-- Basic example inputs under `examples/`
-- Optional small helper scripts (e.g. a self-test runner)
+Download and unzip:
 
-Windows builds are planned to use:
+- `qe-7.5-win-oneapi-msmpi.zip`
 
-- **BLAS/LAPACK**: Intel MKL  
-- **Parallelism**:
-  - OpenMP by default  
-  - Optional MS-MPI builds for users who need MPI on Windows  
+Open **PowerShell** and go to `bin\`:
 
-macOS builds are planned to use:
+```powershell
+cd path\to\qe\bin
+```
 
-- **Apple Accelerate** as the BLAS/LAPACK backend (system framework)
-- OpenMP (or compiler-native threading) where appropriate
+Run QE:
 
-Linux builds will likely use:
+```powershell
+.\pw.exe -in input.in > output.out
+```
 
-- OpenBLAS (or system BLAS/LAPACK)
-- OpenMP
+**MPI example:**
 
-These are mainly intended as convenience builds for users who don’t want to compile QE themselves.
+```powershell
+mpiexec -n 4 .\pw.exe -in input.in
+```
 
----
+That’s it.
 
-## 5. Relation to QMatSuite
+## Performance notes
 
-This repository is part of the **QMatSuite toolchain**:
+- **BLAS / LAPACK / FFT**: Intel MKL
+- **Threading**: OpenMP
+- **MPI**: Microsoft MPI (native Windows)
 
-- **QMatSuite** is a GUI and workflow manager for quantum materials simulations.  
-- The QE binaries published here will be used as the **default QE backend** inside QMatSuite on Windows, and optionally on other platforms.  
-- QMatSuite will be able to **download, verify, and configure** these packages automatically.
+You can control threading via:
 
-👉 QMatSuite main repo: <https://github.com/qmatsuite/qmatsuite>
+- `OMP_NUM_THREADS`
+- `MKL_NUM_THREADS`
 
-If you mainly want a GUI and don’t care about build details, QMatSuite may be a better starting point.
+This is a native Windows build, not a compatibility layer.
 
----
+## Trust & verification
 
-## 6. Roadmap
+These binaries are not just precompiled — they are verifiable:
 
-Planned steps:
+- **All executables are Microsoft Trusted-Signed**
+  - No SmartScreen warnings
+- **Built on GitHub official runners**
+- **GitHub Artifact Attestation**
+  - You can verify the exact commit and workflow that produced the ZIP
+- **SHA256 checksums provided**
 
-- [ ] Publish first **Windows 64-bit QE-only** build  
-- [ ] Provide minimal **Linux** and **macOS** builds  
-- [ ] Add GitHub Actions workflows to build and upload releases automatically  
-- [ ] Ship a simple self-test script (`qe-check.ps1` / `qe-check.bat`)  
-- [ ] Document performance tips (threads, MPI, antivirus interaction on Windows)  
+This is a reproducible and auditable build, not a random binary drop.
 
-Feedback on priorities (QE version, platforms, extra tools) is welcome via GitHub Issues.
+### Attestations (mirroring + build provenance)
 
----
+- **Mirror attestation (this repo)**: proves the ZIP was downloaded + verified and then mirrored with attestation in this repository  
+  - Attestations list: https://github.com/QMatSuite/quantum-espresso-windows-exe/attestations
+- **Build attestation (toolchain repo)**: provenance for the build workflow that produced the ZIP  
+  - https://github.com/QMatSuite/qmatsuite-toolchain/attestations/15597094
 
-## 7. License & upstream projects
+## Relation to QMatSuite
 
-- **Quantum ESPRESSO** is licensed under the GPL; see the upstream project:  
-  <https://github.com/QEF-project/q-e>
+This repository is part of the **QMatSuite** ecosystem.
 
-This repository only provides **precompiled convenience builds** of QE.  
-Licensing of the original project remains unchanged.
+**QMatSuite** is a GUI and workflow manager for quantum materials simulations. These QE binaries are used as the **default Windows backend** for QMatSuite.
+
+QMatSuite can automatically:
+
+- download
+- verify
+- configure
+- run QE on Windows
+
+- [QMatSuite](https://github.com/QMatSuite/qmatsuite)
+
+If you want a GUI instead of typing inputs by hand, QMatSuite is the natural next step.
+
+## License
+
+- **Quantum ESPRESSO** is licensed under **GPL v2 or later**
+- This repository redistributes **unmodified QE binaries**
+- Third-party runtime licenses are included under `licenses/`
+
+## Bottom line
+
+Quantum ESPRESSO on Windows is no longer a compromise.
+
+This project delivers:
+
+- Native performance
+- Reproducible builds
+- Trusted binaries
+- Zero setup
+
+Download, run, compute.
