@@ -130,7 +130,7 @@ This is a reproducible and auditable build, not a random binary drop.
 ### Attestations (mirroring + build provenance)
 
 - **Mirror attestation (this repo)**: proves the ZIP was downloaded + verified and then mirrored with attestation in this repository  
-  - Attestations list: https://github.com/QMatSuite/quantum-espresso-windows-exe/attestations
+  - Attestation: https://github.com/QMatSuite/quantum-espresso-windows-exe/attestations/15620418
 - **Build attestation (toolchain repo)**: provenance for the build workflow that produced the ZIP  
   - https://github.com/QMatSuite/qmatsuite-toolchain/attestations/15597094
 
@@ -139,6 +139,11 @@ This is a reproducible and auditable build, not a random binary drop.
 This repository is part of the **QMatSuite** ecosystem.
 
 **QMatSuite** is a GUI and workflow manager for quantum materials simulations. These QE binaries are used as the **default Windows backend** for QMatSuite.
+
+If you’re tired of hand-editing inputs and copy-pasting CLI commands, QMatSuite is designed to replace that workflow:
+
+- **🖥 Modern GUI, modern stack**: an Electron-based app architecture (in the same class as VS Code), enabling better responsiveness and long-term maintainability
+- **🧩 Modular & maintainable by design**: clean separation between core logic, workflows/automation, and GUI — scalable and future-proof vs a monolithic app
 
 QMatSuite can automatically:
 
