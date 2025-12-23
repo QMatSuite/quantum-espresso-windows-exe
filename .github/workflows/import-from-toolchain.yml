@@ -1,0 +1,126 @@
+name: Import QE Windows binaries from toolchain release
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_tag:
+        description: "Source release tag in QMatSuite/qmatsuite-toolchain (e.g. qe-7.5-win-oneapi-msmpi-20251223-d409e9b)"
+        required: true
+        type: string
+      portal_tag:
+        description: "Tag to create in this portal repo (default: same as source_tag)"
+        required: false
+        type: string
+      zip_name:
+        description: "Asset zip filename to download from source release"
+        required: false
+        default: "qe-7.5-win-oneapi-msmpi.zip"
+        type: string
+      checksums_name:
+        description: "Checksums filename to download from source release"
+        required: false
+        default: "checksums.txt"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve tags and URLs
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_TAG="${{ inputs.source_tag }}"
+          PORTAL_TAG="${{ inputs.portal_tag }}"
+          ZIP_NAME="${{ inputs.zip_name }}"
+          SUMS_NAME="${{ inputs.checksums_name }}"
+
+          if [[ -z "${PORTAL_TAG}" ]]; then
+            PORTAL_TAG="${SOURCE_TAG}"
+          fi
+
+          BASE_URL="https://github.com/QMatSuite/qmatsuite-toolchain/releases/download/${SOURCE_TAG}"
+
+          echo "SOURCE_TAG=${SOURCE_TAG}" >> $GITHUB_ENV
+          echo "PORTAL_TAG=${PORTAL_TAG}" >> $GITHUB_ENV
+          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+          echo "SUMS_NAME=${SUMS_NAME}" >> $GITHUB_ENV
+          echo "BASE_URL=${BASE_URL}" >> $GITHUB_ENV
+
+          echo "portal_tag=${PORTAL_TAG}" >> $GITHUB_OUTPUT
+          echo "zip_name=${ZIP_NAME}" >> $GITHUB_OUTPUT
+          echo "sums_name=${SUMS_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Download release assets (zip + checksums)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          echo "Downloading: ${BASE_URL}/${ZIP_NAME}"
+          curl -fL --retry 5 --retry-delay 2 -o "dist/${ZIP_NAME}" "${BASE_URL}/${ZIP_NAME}"
+          echo "Downloading: ${BASE_URL}/${SUMS_NAME}"
+          curl -fL --retry 5 --retry-delay 2 -o "dist/${SUMS_NAME}" "${BASE_URL}/${SUMS_NAME}"
+
+          ls -lah dist
+
+      - name: Verify SHA256 against checksums.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+
+          # Expect checksums.txt to contain a line like:
+          # <sha256>  <filename>
+          EXPECTED="$(grep -E "  ${ZIP_NAME}$" "${SUMS_NAME}" | head -n 1 | awk '{print $1}')"
+          if [[ -z "${EXPECTED}" ]]; then
+            echo "ERROR: Could not find SHA256 for ${ZIP_NAME} inside ${SUMS_NAME}"
+            echo "---- ${SUMS_NAME} ----"
+            cat "${SUMS_NAME}"
+            exit 1
+          fi
+
+          ACTUAL="$(sha256sum "${ZIP_NAME}" | awk '{print $1}')"
+
+          echo "Expected: ${EXPECTED}"
+          echo "Actual:   ${ACTUAL}"
+
+          if [[ "${EXPECTED}" != "${ACTUAL}" ]]; then
+            echo "ERROR: SHA256 mismatch. Refusing to publish."
+            exit 1
+          fi
+
+          echo "SHA256 verified OK."
+
+      - name: Create GitHub Release (portal repo) and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.portal_tag }}
+          name: ${{ steps.vars.outputs.portal_tag }}
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+          files: |
+            dist/${{ steps.vars.outputs.zip_name }}
+            dist/${{ steps.vars.outputs.sums_name }}
+          body: |
+            Quantum ESPRESSO Windows binaries (Intel oneAPI + MS-MPI)
+
+            This release is a *byte-for-byte* copy of the artifacts published in:
+            QMatSuite/qmatsuite-toolchain release tag: `${{ env.SOURCE_TAG }}`
+
+            Assets:
+            - `${{ env.ZIP_NAME }}`
+            - `${{ env.SUMS_NAME }}`
+
+            Integrity:
+            - SHA256 was verified against `${{ env.SUMS_NAME }}` during this workflow run.
+
+            Provenance / attestation / signing:
+            - The binaries are signed in the *source* pipeline.
+            - For build provenance attestation, see the source release and its attestations:
+              https://github.com/QMatSuite/qmatsuite-toolchain/releases/tag/${{ env.SOURCE_TAG }}
